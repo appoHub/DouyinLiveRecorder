@@ -95,7 +95,7 @@ backup_dir = f'{script_path}/backup_config'
 encoding = 'utf-8-sig'
 rstr = r"[\/\\\:\*\?\"\<\>\|&.。,， ]"
 ffmpeg_path = f"{script_path}/ffmpeg.exe"  # ffmpeg文件路径
-default_path = f'{script_path}/downloads'
+default_path = f'F:\dy'
 os.makedirs(default_path, exist_ok=True)
 file_update_lock = threading.Lock()
 
