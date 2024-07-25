@@ -4,7 +4,7 @@
 Author: Hmily
 GitHub: https://github.com/ihmily
 Date: 2023-07-17 23:52:05
-Update: 2024-07-05 12:36:12
+Update: 2024-07-20 20:41:12
 Copyright (c) 2023-2024 by Hmily, All Rights Reserved.
 Function: Record live stream video.
 """
@@ -38,6 +38,7 @@ from spider import (
     get_douyu_stream_data,
     get_yy_stream_data,
     get_bilibili_stream_data,
+    get_bilibili_room_info,
     get_xhs_stream_url,
     get_bigo_stream_url,
     get_blued_stream_url,
@@ -61,7 +62,8 @@ from spider import (
     get_showroom_stream_data,
     get_acfun_stream_data,
     get_huya_app_stream_url,
-    get_shiguang_stream_url
+    get_shiguang_stream_url,
+    get_yingke_stream_url
 )
 
 from utils import (
@@ -70,9 +72,10 @@ from utils import (
 )
 from msg_push import dingtalk, xizhi, tg_bot
 
-version = "v3.0.6"
-platforms = "\n国内站点：抖音|快手|虎牙|斗鱼|YY|B站|小红书|bigo|blued|网易CC|千度热播|猫耳FM|Look|TwitCasting|百度|微博|酷狗|LiveMe|花椒|流星|Acfun" \
-            "\n海外站点：TikTok|AfreecaTV|PandaTV|WinkTV|FlexTV|PopkonTV|TwitchTV|ShowRoom"
+version = "v3.0.7"
+platforms = ("\n国内站点：抖音|快手|虎牙|斗鱼|YY|B站|小红书|bigo|blued|网易CC|千度热播|猫耳FM|Look|TwitCasting|百度|微博|"
+             "酷狗|LiveMe|花椒|流星|Acfun|时光|映客"
+             "\n海外站点：TikTok|AfreecaTV|PandaTV|WinkTV|FlexTV|PopkonTV|TwitchTV|ShowRoom")
 
 recording = set()
 unrecording = set()
@@ -96,8 +99,13 @@ url_config_file = f'{script_path}/config/URL_config.ini'
 backup_dir = f'{script_path}/backup_config'
 encoding = 'utf-8-sig'
 rstr = r"[\/\\\:\*\?\"\<\>\|&.。,， ]"
+<<<<<<< HEAD
 ffmpeg_path = f"{script_path}/ffmpeg.exe"  # ffmpeg文件路径
 default_path = f'F:\dy'
+=======
+ffmpeg_path = f"{script_path}/ffmpeg.exe"
+default_path = f'{script_path}/downloads'
+>>>>>>> upstream/main
 os.makedirs(default_path, exist_ok=True)
 file_update_lock = threading.Lock()
 
@@ -162,6 +170,9 @@ def display_info():
 
 
 def update_file(file_path: str, old_str: str, new_str: str, start_str: str = None):
+    # 如果待更新的new_str 和 已有的 old_str 没区别，并且 不需要使用注释(start_str)，则直接返回
+    if old_str == new_str and start_str is None:
+        return
     with file_update_lock:
         file_data = ""
         with open(file_path, "r", encoding="utf-8-sig") as f:
@@ -534,66 +545,32 @@ def get_yy_stream_url(json_data: dict) -> Dict[str, Any]:
 
 @trace_error_decorator
 def get_bilibili_stream_url(json_data: dict, video_quality: str) -> Dict[str, Any]:
-    if "is_live" in json_data and not json_data['anchor_name']:
-        return json_data
-
-    anchor_name = json_data['anchor_name']
-    playurl_info = json_data['stream_data']['playurl_info']
-    result = {
-        "anchor_name": anchor_name,
-        "is_live": False,
-    }
-    if playurl_info:
-        # 其中qn=30000为杜比 20000为4K 10000为原画 400蓝光 250超清 150高清 80流畅
-        quality_list = {'10000': 'bluray', '400': '4000', '250': '2500', '150': '1500', '80': '800'}
-        format_list = playurl_info['playurl']['stream'][1]['format']
-        current_qn = format_list[0]['codec'][0]['current_qn']
-        if int(current_qn) != 10000 and len(format_list) > 1:
-            stream_data = format_list[1]['codec'][0]
-        else:
-            stream_data = format_list[0]['codec'][0]
-        accept_qn_list = stream_data['accept_qn']
-        qn_count = len(accept_qn_list)
-        if 10000 not in accept_qn_list:
-            new_accept_qn_list = [10000] + accept_qn_list
-        else:
-            new_accept_qn_list = [i for i in accept_qn_list]
-        while len(new_accept_qn_list) < 5:
-            new_accept_qn_list.append(new_accept_qn_list[-1])
-
-        video_quality_options = {
-            "原画": 0,
-            "蓝光": 1,
-            "超清": 2,
-            "高清": 3,
-            "标清": 4,
-            "流畅": 4
+    anchor_name = json_data["anchor_name"]
+    if not json_data["live_status"]:
+        return {
+            "anchor_name": anchor_name,
+            "is_live": False
         }
-        select_quality = new_accept_qn_list[video_quality_options[video_quality]]
-        select_quality = quality_list[str(select_quality)]
-        base_url = stream_data['base_url']
-        host = stream_data['url_info'][0]['host']
-        extra = stream_data['url_info'][0]['extra']
 
-        if int(current_qn) != 10000 and qn_count > 1:
-            if (qn_count == 2 and 10000 not in accept_qn_list) or qn_count > 2:
-                live_key = base_url.split('/')[3]
-                live_key_list = live_key.split('_')
-                if len(live_key_list) == 4:
-                    live_key_list[3] = select_quality
-                else:
-                    live_key_list.append(select_quality)
+    room_url = json_data['room_url']
 
-                new_live_key = '_'.join(live_key_list)
-                base_url = re.sub(live_key, new_live_key, base_url)
-                extra = re.sub(live_key, new_live_key, extra)
-                time_at = int(time.time()) + 10800
-                extra = re.sub(r"expires=[0-9]+&len=", f"expires={time_at}&len=", extra)
+    video_quality_options = {
+        "原画": '10000',
+        "蓝光": '400',
+        "超清": '250',
+        "高清": '150',
+        "标清": '80',
+        "流畅": '80'
+    }
 
-        m3u8_url = host + base_url + extra
-        result['is_live'] = True
-        result['record_url'] = m3u8_url  # B站使用m3u8链接进行录制
-    return result
+    select_quality = video_quality_options[video_quality]
+    play_url = get_bilibili_stream_data(room_url, qn=select_quality, platform='web', proxy_addr=proxy_addr,
+                                        cookies=bili_cookie)
+    return {
+        'anchor_name': json_data['anchor_name'],
+        'is_live': True,
+        'record_url': play_url
+    }
 
 
 @trace_error_decorator
@@ -751,7 +728,8 @@ def start_record(url_data: tuple, count_variable: int = -1):
                     elif record_url.find("https://www.douyu.com/") > -1:
                         platform = '斗鱼直播'
                         with semaphore:
-                            json_data = get_douyu_info_data(url=record_url, proxy_addr=proxy_address)
+                            json_data = get_douyu_info_data(
+                                url=record_url, proxy_addr=proxy_address, cookies=douyu_cookie)
                             port_info = get_douyu_stream_url(
                                 json_data, proxy_address=proxy_address, cookies=douyu_cookie,
                                 video_quality=record_quality
@@ -767,7 +745,7 @@ def start_record(url_data: tuple, count_variable: int = -1):
                     elif record_url.find("https://live.bilibili.com/") > -1:
                         platform = 'B站直播'
                         with semaphore:
-                            json_data = get_bilibili_stream_data(
+                            json_data = get_bilibili_room_info(
                                 url=record_url, proxy_addr=proxy_address, cookies=bili_cookie)
                             port_info = get_bilibili_stream_url(json_data, record_quality)
 
@@ -786,7 +764,7 @@ def start_record(url_data: tuple, count_variable: int = -1):
                             port_info = get_xhs_stream_url(url=record_url, proxy_addr=proxy_address, cookies=xhs_cookie)
                             retry += 1
 
-                    elif record_url.find("https://www.bigo.tv/") > -1:
+                    elif record_url.find("https://www.bigo.tv/") > -1 or record_url.find("slink.bigovideo.tv/") > -1:
                         platform = 'Bigo直播'
                         with semaphore:
                             port_info = get_bigo_stream_url(record_url, proxy_addr=proxy_address, cookies=bigo_cookie)
@@ -974,6 +952,12 @@ def start_record(url_data: tuple, count_variable: int = -1):
                         with semaphore:
                             port_info = get_shiguang_stream_url(
                                 url=record_url, proxy_addr=proxy_address, cookies=shiguang_cookie)
+
+                    elif record_url.find("www.inke.cn/") > -1:
+                        platform = '映客直播'
+                        with semaphore:
+                            port_info = get_yingke_stream_url(
+                                url=record_url, proxy_addr=proxy_address, cookies=yingke_cookie)
                     else:
                         logger.error(f'{record_url} 未知直播地址')
                         return
@@ -1710,6 +1694,7 @@ while True:
     showroom_cookie = read_config_value(config, 'Cookie', 'showroom_cookie', '')
     acfun_cookie = read_config_value(config, 'Cookie', 'acfun_cookie', '')
     shiguang_cookie = read_config_value(config, 'Cookie', 'shiguang_cookie', '')
+    yingke_cookie = read_config_value(config, 'Cookie', 'yingke_cookie', '')
 
     if len(video_save_type) > 0:
         if video_save_type.upper().lower() == "FLV".lower():
@@ -1788,6 +1773,7 @@ while True:
                     'www.xiaohongshu.com',
                     'xhslink.com',
                     'www.bigo.tv',
+                    'slink.bigovideo.tv',
                     'app.blued.cn',
                     'cc.163.com',
                     'qiandurebo.com',
@@ -1807,6 +1793,7 @@ while True:
                     'm.acfun.cn',
                     'www.rengzu.com',
                     'wap.rengzu.com',
+                    'www.inke.cn'
                 ]
                 overseas_platform_host = [
                     'www.tiktok.com',
