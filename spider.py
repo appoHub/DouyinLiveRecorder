@@ -4,7 +4,7 @@
 Author: Hmily
 GitHub: https://github.com/ihmily
 Date: 2023-07-15 23:15:00
-Update: 2024-07-22 00:03:00
+Update: 2024-07-05 12:33:00
 Copyright (c) 2023 by Hmily, All Rights Reserved.
 Function: Get live stream data.
 """
@@ -196,16 +196,11 @@ def get_douyin_app_stream_data(url: str, proxy_addr: Union[str, None] = None, co
 
         if 'stream_url' not in room_data:
             raise RuntimeError('该直播类型或玩法电脑端暂未支持，请使用app端分享链接进行录制')
+        live_core_sdk_data = room_data['stream_url']['live_core_sdk_data']
 
         if room_data['status'] == 2:
-            live_core_sdk_data = room_data['stream_url']['live_core_sdk_data']
-            pull_datas = room_data['stream_url']['pull_datas']
             if live_core_sdk_data:
-                if pull_datas:
-                    key = list(pull_datas.keys())[0]
-                    json_str = pull_datas[key]['stream_data']
-                else:
-                    json_str = live_core_sdk_data['pull_data']['stream_data']
+                json_str = live_core_sdk_data['pull_data']['stream_data']
                 json_data = json.loads(json_str)
                 if 'origin' in json_data['data']:
                     origin_url_list = json_data['data']['origin']['main']
@@ -249,16 +244,15 @@ def get_douyin_stream_data(url: str, proxy_addr: Union[str, None] = None, cookie
         if 'status' in json_data and json_data['status'] == 4:
             return json_data
 
-        match_json_str2 = re.findall(r'"(\{\\"common\\":.*?)"]\)</script><script nonce=', html_str)
+        match_json_str2 = re.search(r'"(\{\\"common\\":.*?)"]\)</script><script nonce=', html_str)
         if match_json_str2:
-            json_str = match_json_str2[1] if len(match_json_str2) > 1 else match_json_str2[0]
-            json_data2 = json.loads(json_str.replace('\\', '').replace('"{', '{').replace('}"', '}').replace('u0026', '&'))
+            json_str = match_json_str2.group(1).replace('\\', '').replace('"{', '{').replace('}"', '}').replace('u0026', '&')
+            json_data2 = json.loads(json_str)
             if 'origin' in json_data2['data']:
                 origin_url_list = json_data2['data']['origin']['main']
 
         else:
-            html_str = html_str.replace('\\', '').replace('u0026', '&')
-            match_json_str3 = re.search('"origin":\{"main":(.*?),"dash"', html_str, re.S)
+            match_json_str3 = re.search('"origin":\{"main":(.*?),"dash"',html_str.replace('\\', '').replace('u0026', '&'), re.S)
             if match_json_str3:
                 origin_url_list = json.loads(match_json_str3.group(1) + '}')
 
@@ -496,26 +490,16 @@ def get_token_js(rid: str, did: str, proxy_addr: Union[str, None] = None) -> Uni
 
 
 @trace_error_decorator
-def get_douyu_info_data(url: str, proxy_addr: Union[str, None] = None, cookies: Union[str, None] = None) -> Dict[str, Any]:
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 11; SAMSUNG SM-G973U) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/14.2 Chrome/87.0.4280.141 Mobile Safari/537.36',
-        'Referer': 'https://m.douyu.com/3125893?rid=3125893&dyshid=0-96003918aa5365bc6dcb4933000316p1&dyshci=181',
-        'Cookie': 'dy_did=413b835d2ae00270f0c69f6400031601; acf_did=413b835d2ae00270f0c69f6400031601; Hm_lvt_e99aee90ec1b2106afe7ec3b199020a7=1692068308,1694003758; m_did=96003918aa5365bc6dcb4933000316p1; dy_teen_mode=%7B%22uid%22%3A%22472647365%22%2C%22status%22%3A0%2C%22birthday%22%3A%22%22%2C%22password%22%3A%22%22%7D; PHPSESSID=td59qi2fu2gepngb8mlehbeme3; acf_auth=94fc9s%2FeNj%2BKlpU%2Br8tZC3Jo9sZ0wz9ClcHQ1akL2Nhb6ZyCmfjVWSlR3LFFPuePWHRAMo0dt9vPSCoezkFPOeNy4mYcdVOM1a8CbW0ZAee4ipyNB%2Bflr58; dy_auth=bec5yzM8bUFYe%2FnVAjmUAljyrsX%2FcwRW%2FyMHaoArYb5qi8FS9tWR%2B96iCzSnmAryLOjB3Qbeu%2BBD42clnI7CR9vNAo9mva5HyyL41HGsbksx1tEYFOEwxSI; wan_auth37wan=5fd69ed5b27fGM%2FGoswWwDo%2BL%2FRMtnEa4Ix9a%2FsH26qF0sR4iddKMqfnPIhgfHZUqkAk%2FA1d8TX%2B6F7SNp7l6buIxAVf3t9YxmSso8bvHY0%2Fa6RUiv8; acf_uid=472647365; acf_username=472647365; acf_nickname=%E7%94%A8%E6%88%B776576662; acf_own_room=0; acf_groupid=1; acf_phonestatus=1; acf_avatar=https%3A%2F%2Fapic.douyucdn.cn%2Fupload%2Favatar%2Fdefault%2F24_; acf_ct=0; acf_ltkid=25305099; acf_biz=1; acf_stk=90754f8ed18f0c24; Hm_lpvt_e99aee90ec1b2106afe7ec3b199020a7=1694003778'
-    }
-    if cookies:
-        headers['Cookie'] = cookies
-
+def get_douyu_info_data(url: str, proxy_addr: Union[str, None] = None) -> Dict[str, Any]:
     match_rid = re.search('rid=(.*?)(?=&|$)', url)
     if match_rid:
         rid = match_rid.group(1)
     else:
         rid = re.search('douyu.com/(.*?)(?=\?|$)', url).group(1)
-        html_str = get_req(url=f'https://m.douyu.com/{rid}', proxy_addr=proxy_addr, headers=headers)
-        json_str = re.findall('<script id="vike_pageContext" type="application/json">(.*?)</script>', html_str)[0]
-        json_data = json.loads(json_str)
-        rid = json_data['pageProps']['room']['roomInfo']['roomInfo']['rid']
-
-    headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0'
+    headers = {
+        'referer': 'https://www.douyu.com/7644887?dyshid=0-40f7c4a06aae9dc5bede316000031701&dyshci=181',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0',
+    }
     url2 = f'https://www.douyu.com/betard/{rid}'
     json_str = get_req(url=url2, proxy_addr=proxy_addr, headers=headers)
     json_data = json.loads(json_str)
@@ -586,7 +570,7 @@ def get_yy_stream_data(url: str, proxy_addr: Union[str, None] = None, cookies: U
 
 
 @trace_error_decorator
-def get_bilibili_room_info(url: str, proxy_addr: Union[str, None] = None, cookies: Union[str, None] = None) -> \
+def get_bilibili_stream_data(url: str, proxy_addr: Union[str, None] = None, cookies: Union[str, None] = None) -> \
         Dict[str, Any]:
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0',
@@ -596,48 +580,28 @@ def get_bilibili_room_info(url: str, proxy_addr: Union[str, None] = None, cookie
     if cookies:
         headers['Cookie'] = cookies
 
-    try:
-        room_id = url.split('?')[0].rsplit('/', maxsplit=1)[1]
-        json_str = get_req(f'https://api.live.bilibili.com/room/v1/Room/room_init?id={room_id}',
-                           proxy_addr=proxy_addr,headers=headers)
-        room_info = json.loads(json_str)
-        uid = room_info['data']['uid']
-        live_status = True if room_info['data']['live_status'] == 1 else False
+    def get_data_from_api(link: str) -> Dict[str, Any]:
+        room_id = link.split('?')[0].rsplit('/', maxsplit=1)[1]
+        api = f'https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id={room_id}&no_playurl=0&mask=1&qn=0&platform=web&protocol=0,1&format=0,1,2&codec=0,1,2&dolby=5&panorama=1'
+        json_str = get_req(url=api, proxy_addr=proxy_addr, headers=headers)
+        return json.loads(json_str)
 
-        api = f'https://api.live.bilibili.com/live_user/v1/Master/info?uid={uid}'
-        json_str2 = get_req(url=api, proxy_addr=proxy_addr, headers=headers)
-        anchor_info = json.loads(json_str2)
-        anchor_name = anchor_info['data']['info']['uname']
-        return {"anchor_name": anchor_name, "live_status": live_status, "room_url":url}
+    try:
+        html_str = get_req(url=url, proxy_addr=proxy_addr, headers=headers)
+        json_str = re.search('<script>window.__NEPTUNE_IS_MY_WAIFU__=(.*?)</script><script>', html_str, re.S)
+        if json_str:
+            json_str = json_str.group(1)
+            json_data = json.loads(json_str)
+            json_data['anchor_name'] = json_data['roomInfoRes']['data']['anchor_info']['base_info']['uname']
+            json_data['stream_data'] = json_data['roomInitRes']['data']
+        else:
+            json_data = get_data_from_api(url)
+            json_data['anchor_name'] = f"房间号{json_data['data']['room_id']}的直播"
+            json_data['stream_data'] = json_data['data']
+        return json_data
     except Exception as e:
         print(e)
-        return {"anchor_name": '', "live_status": False, "room_url":url}
-
-
-@trace_error_decorator
-def get_bilibili_stream_data(url: str, qn: str = '10000', platform: str = 'web', proxy_addr: Union[str, None] = None,
-                             cookies: Union[str, None] = None) -> str:
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Language': 'zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2',
-    }
-    if cookies:
-        headers['Cookie'] = cookies
-
-    room_id = url.split('?')[0].rsplit('/', maxsplit=1)[1]
-    params = {
-        'cid': room_id,
-        'qn': qn,
-        'platform': platform,
-    }
-    play_api = f'https://api.live.bilibili.com/room/v1/Room/playUrl?{urllib.parse.urlencode(params)}'
-    json_str = get_req(play_api, proxy_addr=proxy_addr, headers=headers)
-    json_data = json.loads(json_str)
-    for i in json_data['data']['durl']:
-        if 'd1--cn-gotcha' in i['url']:
-            return i['url']
-    return json_data['data']['durl'][-1]['url']
+        return {"anchor_name": '', "is_live": False}
 
 
 @trace_error_decorator
@@ -690,15 +654,7 @@ def get_bigo_stream_url(url: str, proxy_addr: Union[str, None] = None, cookies: 
     if cookies:
         headers['Cookie'] = cookies
 
-    if 'bigo.tv' not in url:
-        html_str = get_req(url, proxy_addr=proxy_addr, headers=headers)
-        web_url = re.search(
-            '<meta data-n-head="ssr" data-hid="al:web:url" property="al:web:url" content="(.*?)">',
-            html_str).group(1)
-        room_id = re.search('&h=(\d+)(?=$|&)', web_url.replace('&amp;', '&')).group(1)
-    else:
-        room_id = re.search('www.bigo.tv/cn/(\w+)', url).group(1)
-
+    room_id = re.search('www.bigo.tv/cn/(\w+)', url).group(1)
     data = {'siteId': room_id}  # roomId
     url2 = 'https://ta.bigo.tv/official_website/studio/getInternalStudioInfo'
     json_str = get_req(url=url2, proxy_addr=proxy_addr, headers=headers, data=data)
@@ -716,8 +672,8 @@ def get_bigo_stream_url(url: str, proxy_addr: Union[str, None] = None, cookies: 
         result['is_live'] = True
         result['record_url'] = m3u8_url
     elif result['anchor_name'] == '':
-        html_str = get_req(url=f'https://www.bigo.tv/cn/{room_id}', proxy_addr=proxy_addr, headers=headers)
-        result['anchor_name'] = re.search('<title>欢迎来到(.*?)的直播间</title>', html_str, re.S).group(1)
+        html_str = get_req(url=url, proxy_addr=proxy_addr, headers=headers)
+        result['anchor_name'] = re.search('<title>(.*?)</title>', html_str, re.S).group(1)
 
     return result
 
@@ -1624,12 +1580,12 @@ def login_twitcasting(
     if cookies:
         headers['Cookie'] = cookies
 
-    if account_type == "twitter":
-        login_url = 'https://twitcasting.tv/indexpasswordlogin.php'
-        login_api = 'https://twitcasting.tv/indexpasswordlogin.php?redir=/indexloginwindow.php?next=%2F&keep=1'
-    else:
+    if account_type == "normal":
         login_url = 'https://twitcasting.tv/indexcaslogin.php?redir=%2F&keep=1'
         login_api = 'https://twitcasting.tv/indexcaslogin.php?redir=/indexloginwindow.php?next=%2F&keep=1'
+    else:
+        login_url = 'https://twitcasting.tv/indexpasswordlogin.php'
+        login_api = 'https://twitcasting.tv/indexpasswordlogin.php?redir=/indexloginwindow.php?next=%2F&keep=1'
 
     html_str = get_req(login_url, proxy_addr=proxy_addr, headers=headers)
     cs_session_id = re.search('<input type="hidden" name="cs_session_id" value="(.*?)">', html_str).group(1)
@@ -1695,16 +1651,6 @@ def get_twitcasting_stream_url(
     result = {"anchor_name": '', "is_live": False}
 
     try:
-        to_login = get_params(url, "login")
-        if to_login == 'true':
-            print('TwitCasting正在尝试登录...')
-            new_cookie = login_twitcasting(account_type=account_type, username=username, password=password,
-                                           proxy_addr=proxy_addr, cookies=cookies)
-            if not new_cookie:
-                raise RuntimeError('TwitCasting登录失败,请检查配置文件中的账号密码是否正确')
-            print('TwitCasting 登录成功！开始获取数据...')
-            headers['Cookie'] = new_cookie
-            update_config('./config/config.ini', 'Cookie', 'twitcasting_cookie', new_cookie)
         anchor_name, live_status = get_data(headers)
     except AttributeError:
         print('获取TwitCasting数据失败，正在尝试登录...')
@@ -1867,7 +1813,7 @@ def get_kugou_stream_url(url: str, proxy_addr: Union[str, None] = None, cookies:
     if not anchor_name:
         raise RuntimeError('不支持音乐频道直播间录制，请切换直播间录制')
     live_status = json_data['data']['liveType']
-    if live_status != -1:
+    if live_status == 0:
         params = {
             'std_rid': room_id,
             'std_plat': '7',
@@ -2307,43 +2253,6 @@ def get_shiguang_stream_url(url: str, proxy_addr: Union[str, None] = None, cooki
     return result
 
 
-@trace_error_decorator
-def get_yingke_stream_url(url: str, proxy_addr: Union[str, None] = None, cookies: Union[str, None] = None) -> \
-        Dict[str, Any]:
-    headers = {
-        'Referer': 'https://www.inke.cn/',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0',
-    }
-    if cookies:
-        headers['Cookie'] = cookies
-
-    parsed_url = urllib.parse.urlparse(url)
-    query_params = urllib.parse.parse_qs(parsed_url.query)
-    uid = query_params['uid'][0]
-    live_id = query_params['id'][0]
-    params = {
-        'uid': uid,
-        'id': live_id,
-        '_t': str(int(time.time())),
-    }
-
-    api = f'https://webapi.busi.inke.cn/web/live_share_pc?{urllib.parse.urlencode(params)}'
-    json_str = get_req(api, proxy_addr=proxy_addr, headers=headers)
-    json_data = json.loads(json_str)
-    anchor_name = json_data['data']['media_info']['nick']
-    live_status = json_data['data']['status']
-
-    result = {"anchor_name": anchor_name, "is_live": False}
-    if live_status == 1:
-        m3u8_url = json_data['data']['live_addr'][0]['hls_stream_addr']
-        flv_url = json_data['data']['live_addr'][0]['stream_addr']
-        result["is_live"] = True
-        result["m3u8_url"] = m3u8_url
-        result["flv_url"] = flv_url
-        result["record_url"] = m3u8_url
-    return result
-
-
 if __name__ == '__main__':
     # 尽量用自己的cookie，以避免默认的不可用导致无法获取数据
     # 以下示例链接不保证时效性，请自行查看链接是否能正常访问
@@ -2362,7 +2271,6 @@ if __name__ == '__main__':
     # room_url = 'https://www.redelight.cn/hina/livestream/569077534207413574?appuid=5f3f478a00000000010005b3&'
     # room_url = 'https://www.xiaohongshu.com/hina/livestream/569098486282043893?appuid=5f3f478a00000000010005b3&'
     # room_url = 'https://www.bigo.tv/cn/716418802'  # bigo直播
-    # room_url = 'https://slink.bigovideo.tv/uPvCVq'  # bigo直播
     # room_url = 'https://app.blued.cn/live?id=Mp6G2R'  # blued直播
     # room_url = 'https://play.afreecatv.com/sw7love'  # afreecatv直播
     # room_url = 'https://m.afreecatv.com/#/player/hl6260'  # afreecatv直播
@@ -2388,7 +2296,6 @@ if __name__ == '__main__':
     # room_url = 'https://www.showroom-live.com/r/TPS0728'  # showroom
     # room_url = 'https://live.acfun.cn/live/17912421'  # Acfun
     # room_url = 'https://www.rengzu.com/180778'  # 时光直播
-    # room_url = 'https://www.inke.cn/liveroom/index.html?uid=710032101&id=1720857535354099'  # 映客直播
 
     print(get_douyin_stream_data(room_url, proxy_addr=''))
     # print(get_douyin_app_stream_data(room_url, proxy_addr=''))
@@ -2423,4 +2330,3 @@ if __name__ == '__main__':
     # print(get_showroom_stream_data(room_url, proxy_addr=''))
     # print(get_acfun_stream_data(room_url, proxy_addr=''))
     # print(get_shiguang_stream_url(room_url, proxy_addr=''))
-    # print(get_yingke_stream_url(room_url, proxy_addr=''))
